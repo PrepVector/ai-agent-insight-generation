@@ -10,3 +10,4 @@ python-dotenv>=1.0.0
 markdown>=3.5.0
 pydantic>=2.0.0
 statsmodels
+tenacity
