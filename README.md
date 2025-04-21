@@ -22,6 +22,8 @@ InsightBot is a sophisticated analysis tool that leverages two specialized agent
 ## Getting Started
 
 ### Prerequisites
+1. Create a virtual environment
+2. Activate the virtual environment
 
 ```bash
 pip install -r requirements.txt
@@ -31,7 +33,7 @@ pip install -r requirements.txt
 
 1. Run the main application:
 ```bash
-python app.py
+streamlit run app.py
 ```
 
 2. Use the system through the provided interface to:
