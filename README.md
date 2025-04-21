@@ -49,6 +49,8 @@ streamlit run app.py
 - Generate Business Report (Note: It will in bullet pointers -> Comprehensive report containing the summary of the EDA on dataset)
 - Dockefile
 - API Integration
+- Deployment to Streamlit Cloud etc
+
 
 ## Limitations
 - Rate Limit Error
