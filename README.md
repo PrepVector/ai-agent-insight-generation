@@ -40,6 +40,8 @@ streamlit run app.py
 - Insight generation
 - Strategic recommendations
 ### EDA Agent
+- Batch processing of questions for each category
+- Rate limit handling mechnaism implemented
 - Statistical analysis
 - Data visualization
 - Pattern detection
@@ -54,6 +56,10 @@ streamlit run app.py
 
 ## Limitations
 - Rate Limit Error
+- Optimize the prompt templates for improving results (Sometimes reports are coming empty, or plots not getting generated (but code generation is present)
+- Continue/ Run multiple times with less number of questions to see accurate results.
+
+
 
 
 ## Contributing
