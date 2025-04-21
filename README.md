@@ -1,6 +1,6 @@
 # InsightBot
 
-An intelligent data analysis system combining Business Analytics and Exploratory Data Analysis capabilities. (# ai-agent-insight-generation
+An intelligent data analysis system combining Business Analytics and Exploratory Data Analysis capabilities. (# ai-agent-insight-generation ->
 AI agent that generates data insights)
 
 ## Overview
