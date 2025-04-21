@@ -46,7 +46,7 @@ streamlit run app.py
 - Exploratory analysis
 
 ## Further Improvements
-- Generate Business Report
+- Generate Business Report (Note: It will in bullet pointers -> Comprehensive report containing the summary of the EDA on dataset)
 - Dockefile
 - API Integration
 
