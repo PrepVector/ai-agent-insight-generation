@@ -2,6 +2,8 @@
 An intelligent data analysis system combining Business Analytics and Exploratory Data Analysis capabilities. (# ai-agent-insight-generation ->
 AI agent that generates data insights)
 
+![InsightBot_Workflow drawio](https://github.com/user-attachments/assets/4acac482-eb8c-4f10-8362-5e66737f4769)
+
 ## Overview
 InsightBot is a sophisticated analysis tool that leverages two specialized agents:
 - **BA Agent**: Handles business analytics and insights generation
