@@ -35,11 +35,13 @@ def create_llm_with_retry():
     try:
         # Try primary model
         llm = ChatGroq(
-            temperature=0,
+            temperature=0.01,
             model_name="groq/llama-3.3-70b-versatile",
+            # model_name="groq/llama3-70b-8192",
+            # max_tokens=600,
+
             # model_name = "groq/mixtral-8x7b-32768",
-            max_tokens=600,
-            streaming=False,  # Disable if not necessary
+            # max_tokens=8000
         )
         # Return the LLM instance
         return llm
@@ -70,8 +72,8 @@ def create_data_scientist():
         # Create the data scientist agent
         return Agent(
             role="Data Scientist",
-            goal="Generate clean, error-free code to answer multiple questions about data quality, execute the code, and provide clear interpretations.",
-            backstory="You are a skilled data scientist proficient in exploratory data analysis. You write clean, error-free code with proper string handling and formatting.",
+            goal="Generate clean, error-free code to answer multiple questions about data quality, execute the code, and provide clear interpretations with proper visualizations.",
+            backstory="You are a skilled data scientist proficient in exploratory data analysis. You write clean, error-free code with proper string handling, formatting, and visualization management.",
             verbose=True,
             llm=llm,
             max_retry_limit=3  # Add retry limit for better error handling
@@ -89,14 +91,14 @@ def create_data_scientist():
         # Create the data scientist agent
         return Agent(
             role="Data Scientist",
-            goal="Generate clean, error-free code to answer multiple questions about data quality, execute the code, and provide clear interpretations.",
-            backstory="You are a skilled data scientist proficient in exploratory data analysis. You write clean, error-free code with proper string handling and formatting.",
+            goal="Generate clean, error-free code to answer multiple questions about data quality, execute the code, and provide clear interpretations with proper visualizations.",
+            backstory="You are a skilled data scientist proficient in exploratory data analysis. You write clean, error-free code with proper string handling, formatting, and visualization management.",
             verbose=True,
             llm=llm,
             max_retry_limit=3
         )
 
-def create_batch_eda_task(questions_list, category_name, dataset_description, datapath_info, imagepath_dir):
+def create_batch_eda_task(questions_list, category_name, datapath_info, imagepath_dir):
     """Create a task for the data scientist to analyze a batch of questions in one category"""
     questions_str = "\n".join([f"{i+1}. {q}" for i, q in enumerate(questions_list)])
     
@@ -105,7 +107,6 @@ def create_batch_eda_task(questions_list, category_name, dataset_description, da
         You are tasked with generating the Python code to answer multiple questions for the category: {category_name}. 
         
         Dataset information:
-        - Dataset description: {dataset_description}
         - Dataset path: {datapath_info}
         - Image save path: {imagepath_dir}
         
@@ -121,12 +122,12 @@ def create_batch_eda_task(questions_list, category_name, dataset_description, da
            - Create separate sections for each question with clear headers
            - Use appropriate analysis methods for each question
            - Print results to console
-           - Save plots to {imagepath_dir} with descriptive filenames that include the question number
-           - PROVIDE DETAILED INTERPRETATIONS AND ANALYSIS for each question
+           - Save plots to {imagepath_dir} with descriptive filenames in the format: {imagepath_dir}/[category]_q[num]_[description].png
+           - After saving each plot, explicitly print: "Plot saved to: [full_path_to_image]"
         
         3. For each plot:
-           - Use plt.savefig('{imagepath_dir}/[category_name]_q[question_number]_[description].png', bbox_inches='tight', dpi=300)
-           - Print the exact save path
+           - Use plt.savefig('{imagepath_dir}/[category]_q[num]_[description].png', bbox_inches='tight', dpi=300)
+           - ALWAYS print: "Plot saved to: [full_path_to_image]" immediately after saving
            - Call plt.close() to free memory
         
         4. Ensure your code:
@@ -134,6 +135,7 @@ def create_batch_eda_task(questions_list, category_name, dataset_description, da
            - Uses proper string formatting (no unterminated strings)
            - Handles errors gracefully
            - Is well-commented
+           - Properly saves all plots and prints their save paths
         
         5. Structure your code like this:
            ```python
@@ -156,14 +158,6 @@ def create_batch_eda_task(questions_list, category_name, dataset_description, da
            
            # And so on...
            ```
-           
-        6. REMEMBER: For EACH question your output MUST include:
-           - The question text
-           - Complete Python code
-           - Results from code execution
-           - DETAILED interpretation of results (minimum 3-4 sentences)
-           - List of all generated plots with full paths
-           - A section displaying all the plots for the question
         """,
         expected_output="""
     Provide a structured analysis with:
@@ -174,19 +168,20 @@ def create_batch_eda_task(questions_list, category_name, dataset_description, da
     - [Question text]
     
     #### Code
+    ```python
     [Clean, properly formatted Python code]
+    ```
     
     #### Code Output
+    ```
     [Results from execution]
+    ```
     
-    #### Analysis
-    [Clear, DETAILED interpretation of results - minimum 3-4 sentences]
+    #### Detailed Analysis
+    [Clear detailed interpretation of results]
     
     #### Plots Generated
-    [List of plots with full paths]
-    
-    ### Visualizations
-    ![Plot](path/to/plot.png)
+    [List of plots with full paths as printed in the code output]
     
     ### Question 2
     [Same structure as above]
@@ -195,23 +190,33 @@ def create_batch_eda_task(questions_list, category_name, dataset_description, da
     """,
         agent=create_data_scientist()
     )
-
+    
 def extract_plot_paths(result_text):
     """Extract plot file paths from the result text"""
     plot_paths = []
     patterns = [
         r'Plot saved to: ([\w/\\\.]+\.png)',
-        r'Saved to ([\w/\\\.]+\.png)',
-        r'(eda_agent_report/images/[\w\-_\.]+\.png)'
+        r'Saved to: ([\w/\\\.]+\.png)',
+        r'(eda_agent_report/images/[\w\-_\.]+\.png)',
+        r'saving plot to: ([\w/\\\.]+\.png)',
+        r'Saved plot to: ([\w/\\\.]+\.png)',
+        r'(eda_agent_report\\images\\[\w\-_\.]+\.png)'
     ]
     
     for pattern in patterns:
-        matches = re.findall(pattern, result_text)
+        matches = re.findall(pattern, result_text, re.IGNORECASE)
         plot_paths.extend(matches)
     
-    return list(set(plot_paths))
+    # Clean up paths (remove duplicates, fix slashes)
+    cleaned_paths = []
+    for path in plot_paths:
+        path = path.replace('\\', '/')
+        if path not in cleaned_paths:
+            cleaned_paths.append(path)
+    
+    return cleaned_paths
 
-def run_eda_analysis(dataset_path, dataset_description, questions_data, imagepath_dir):
+def run_eda_analysis(dataset_path, questions_data, imagepath_dir):
     """Run the EDA crew with the given questions - batch by category with improved rate limit handling"""
     
     # Create directories if they don't exist
@@ -258,8 +263,7 @@ def run_eda_analysis(dataset_path, dataset_description, questions_data, imagepat
                 # Create a batch task for all questions in this category
                 task = create_batch_eda_task(
                     category_data["questions"], 
-                    category_data['category'],
-                    dataset_description, 
+                    category_data['category'], 
                     dataset_path, 
                     imagepath_dir
                 )
@@ -290,18 +294,24 @@ def run_eda_analysis(dataset_path, dataset_description, questions_data, imagepat
                         
                         # Process and embed plot images in the report
                         if plot_paths:
+                            # Split the result text into sections
                             sections = result_text.split('###')
                             updated_result = ""
                             
+                            # Process each section
                             for section in sections:
                                 if section.strip():
                                     updated_result += f"###{section}"
                                     
-                                    if "Plots Generated" in section:
+                                    # If this section contains "Plots Generated", add visualizations
+                                    if "Plots Generated" in section and plot_paths:
                                         updated_result += "\n### Visualizations\n\n"
                                         for plot_path in plot_paths:
-                                            relative_path = os.path.relpath(plot_path, 'eda_agent_report')
-                                            relative_path = relative_path.replace('\\', '/')
+                                            # Clean up the path
+                                            relative_path = plot_path.replace('\\', '/')
+                                            if not relative_path.startswith('eda_agent_report'):
+                                                relative_path = os.path.join('eda_agent_report', relative_path)
+                                            
                                             updated_result += f"![Plot]({relative_path})\n\n"
                             
                             result_text = updated_result
