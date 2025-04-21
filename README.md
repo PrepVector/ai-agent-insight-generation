@@ -1,16 +1,13 @@
 # InsightBot
-
 An intelligent data analysis system combining Business Analytics and Exploratory Data Analysis capabilities. (# ai-agent-insight-generation ->
 AI agent that generates data insights)
 
 ## Overview
-
 InsightBot is a sophisticated analysis tool that leverages two specialized agents:
 - **BA Agent**: Handles business analytics and insights generation
 - **EDA Agent**: Performs exploratory data analysis and statistical computations
 
 ## Features
-
 - Automated data analysis and visualization
 - Business insights generation
 - Statistical analysis and pattern detection
@@ -18,7 +15,6 @@ InsightBot is a sophisticated analysis tool that leverages two specialized agent
 - Comprehensive data exploration
 
 ## Getting Started
-
 ### Prerequisites
 1. Create a virtual environment
 2. Activate the virtual environment
@@ -28,12 +24,10 @@ pip install -r requirements.txt
 ```
 
 ### Usage
-
 1. Run the main application:
 ```bash
 streamlit run app.py
 ```
-
 2. Use the system through the provided interface to:
     - Load and analyze datasets
     - Generate business insights
