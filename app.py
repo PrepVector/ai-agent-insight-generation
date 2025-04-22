@@ -112,7 +112,7 @@ def main():
                     # Parse the edited text back to structured format
                     updated_questions = parse_text_to_questions(st.session_state.questions_text)
                     # Run the EDA analysis
-                    results = run_eda_analysis(st.session_state.dataset_path, st.session_state.metadata_path, updated_questions,imagepath_dir)
+                    results = run_eda_analysis(st.session_state.dataset_path, updated_questions,imagepath_dir)
                     if st.button("Stop Analysis"):
                         st.warning("Analysis stopped by user")
                         st.stop()
