@@ -72,7 +72,7 @@ InsightBot is built on CrewAI, an advanced multi-agent framework that:
 - Deployment to Streamlit Cloud etc
 - Enhanced agent collaboration features
 - Extended CrewAI capabilities
-
+- Experimentation with paid and other open-source API (apart from Groq)
 
 ## Limitations
 - Rate Limit Error
