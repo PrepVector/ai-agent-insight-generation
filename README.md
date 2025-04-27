@@ -21,8 +21,14 @@ InsightBot harnesses the power of CrewAI, a multi-agent framework designed for o
 
 ## Getting Started
 ### Prerequisites
-1. Create a virtual environment
+1. Create a virtual environment (3.11 recommended)
+```bash
+python3.11 -m venv venv
+```
 2. Activate the virtual environment
+```bash
+venv\Scripts\activate
+```
 3. Install the required dependencies
 ```bash
 pip install -r requirements.txt
