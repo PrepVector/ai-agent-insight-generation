@@ -1,0 +1,52 @@
+{
+    "data_quality_assessment": {
+        "category": "Data Quality Assessment",
+        "questions": [
+            "Are there any missing values in critical columns such as 'failure_event' or 'predictive_risk'?",
+            "Are all timestamps valid and in chronological order?",
+            "Are there any inconsistencies in categorical data such as 'location' or 'operating_system'?",
+            "Are duplicate rows present in the dataset, and if so, how should they be handled?",
+            "Are all numerical values within their expected ranges (e.g., 'cpu_usage' between 0-100%)?"
+        ]
+    },
+    "statistical_summary": {
+        "category": "Statistical Summary",
+        "questions": [
+            "What are the mean, median, and mode for 'cpu_usage', 'memory_usage', and 'disk_usage'?",
+            "What is the distribution of 'failure_event' and how balanced is the target variable?",
+            "What is the variance and standard deviation for 'temperature' and 'fan_speed'?",
+            "What are the interquartile ranges (IQR) for 'server_load' and 'predictive_risk'?",
+            "How does the skewness and kurtosis of 'power_consumption' and 'uptime_days' indicate the shape of their distributions?"
+        ]
+    },
+    "outlier_detection": {
+        "category": "Outlier Detection",
+        "questions": [
+            "Are there any servers with extremely high 'temperature' or 'fan_speed' values?",
+            "Do any servers have unusually high 'error_logs_count' compared to the rest?",
+            "Are there outliers in 'network_latency' that could indicate connectivity issues?",
+            "Are there servers with 'predictive_risk' values close to 1 that require immediate attention?",
+            "Are there any anomalies in 'power_consumption' that deviate significantly from the mean?"
+        ]
+    },
+    "feature_relationships": {
+        "category": "Feature Relationships",
+        "questions": [
+            "What is the correlation between 'cpu_usage' and 'memory_usage'?",
+            "How does 'server_age' impact 'failure_event' and 'predictive_risk'?",
+            "Is there a relationship between 'temperature' and 'fan_speed'?",
+            "Does 'disk_usage' correlate with 'server_load' or 'uptime_days'?",
+            "How does 'redundancy_level' affect the likelihood of 'failure_event'?"
+        ]
+    },
+    "pattern_trend_anomalies": {
+        "category": "Pattern Trend Anomalies",
+        "questions": [
+            "Are there seasonal trends in 'failure_event' based on 'timestamp'?",
+            "Do servers in specific 'locations' experience higher 'predictive_risk' values?",
+            "Are there patterns in 'error_logs_count' that align with spikes in 'cpu_usage'?",
+            "Does 'power_consumption' show any unexpected shifts over time?",
+            "Are there anomalies in 'temperature' trends that could indicate cooling system issues?"
+        ]
+    }
+}

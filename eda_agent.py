@@ -1,7 +1,7 @@
 from crewai import Agent, Crew, Process, Task
+from crewai.llm import LLM
 from pydantic import BaseModel
 from typing import List
-from langchain_groq import ChatGroq
 import warnings
 import os
 import re
@@ -9,399 +9,389 @@ import time
 import random
 from dotenv import load_dotenv
 from tenacity import retry, wait_exponential, stop_after_attempt, retry_if_exception_type
-# Suppress warnings
+
 warnings.filterwarnings('ignore')
-
-# Load environment variables from .env file
 load_dotenv()
-os.environ["GROQ_API_KEY"] = os.getenv("GROQ_API_KEY")
-# Import the custom PythonREPLTool
-from tools.custom_tool import PythonREPLTool
 
-# Define a custom exception for rate limits that will be used consistently
+AZURE_OPENAI_API_KEY = os.getenv("AZURE_OPENAI_API_KEY")
+AZURE_OPENAI_ENDPOINT = os.getenv("AZURE_OPENAI_ENDPOINT")
+AZURE_OPENAI_DEPLOYMENT = os.getenv("AZURE_OPENAI_DEPLOYMENT")
+AZURE_OPENAI_API_VERSION = os.getenv("AZURE_OPENAI_API_VERSION")
+
 class RateLimitException(Exception):
     pass
+
 class QuestionList(BaseModel):
     questions: List[str]
 
-# Decorator to retry on RateLimitError with exponential backoff
 @retry(
     retry=retry_if_exception_type((RateLimitException, Exception)),
-    wait=wait_exponential(multiplier=2, min=10, max=120),  # Increased backoff times
-    stop=stop_after_attempt(8)  # Increased max attempts
+    wait=wait_exponential(multiplier=2, min=10, max=120),
+    stop=stop_after_attempt(5)
 )
-def create_llm_with_retry():
-    """Create an LLM instance with retry logic for rate limits"""
+def create_llm():
+    """Create LLM with retry logic"""
     try:
-        # Try primary model
-        llm = ChatGroq(
+        return LLM(
+            model="azure/gpt-4o",
+            api_key=AZURE_OPENAI_API_KEY,
+            api_base=AZURE_OPENAI_ENDPOINT,
+            api_version=AZURE_OPENAI_API_VERSION,
             temperature=0.01,
-            model_name="groq/llama-3.3-70b-versatile",
-            # model_name="groq/llama3-70b-8192",
-            # max_tokens=600,
-
-            # model_name = "groq/mixtral-8x7b-32768",
-            # max_tokens=8000
+            max_tokens=4000
         )
-        # Return the LLM instance
-        return llm
     except Exception as e:
-        error_str = str(e).lower()
-        # Check if it's a rate limit error
-        if "rate limit" in error_str or "too many requests" in error_str:
-            print(f"Rate limit hit: {str(e)}")
-            # Add jitter to avoid synchronized retries
+        if "rate limit" in str(e).lower() or "too many requests" in str(e).lower():
             wait_time = 20 + random.uniform(2, 10)
-            print(f"Waiting for {wait_time:.2f} seconds before retry...")
+            print(f"Rate limit hit. Waiting {wait_time:.2f}s...")
             time.sleep(wait_time)
-            raise RateLimitException(f"Rate limit exceeded: {str(e)}")
+            raise RateLimitException(f"Rate limit: {str(e)}")
         else:
-            # For other errors
-            print(f"Error creating LLM: {str(e)}")
             wait_time = 10 + random.uniform(1, 5)
-            print(f"Waiting for {wait_time:.2f} seconds before retry...")
+            print(f"Error creating LLM. Waiting {wait_time:.2f}s...")
             time.sleep(wait_time)
-            raise  # Re-raise to let tenacity handle the retry
+            raise
 
-def create_data_scientist():
-    """Create the data scientist agent with improved retry handling"""
-    try:
-        # Create LLM with retry logic
-        llm = create_llm_with_retry()
-        
-        # Create the data scientist agent
-        return Agent(
-            role="Data Scientist",
-            goal="Generate clean, error-free code to answer multiple questions about data quality, execute the code, and provide clear interpretations with proper visualizations.",
-            backstory="You are a skilled data scientist proficient in exploratory data analysis. You write clean, error-free code with proper string handling, formatting, and visualization management.",
-            verbose=True,
-            llm=llm,
-            max_retry_limit=3  # Add retry limit for better error handling
-        )
-    except Exception as e:
-        print(f"Error creating data scientist agent: {str(e)}")
-        # If we fail to create the agent, try one more time after waiting
-        wait_time = 30 + random.uniform(5, 15)
-        print(f"Waiting {wait_time:.2f} seconds before retry...")
-        time.sleep(wait_time)
-        
-        # Create LLM with retry logic again
-        llm = create_llm_with_retry()
-        
-        # Create the data scientist agent
-        return Agent(
-            role="Data Scientist",
-            goal="Generate clean, error-free code to answer multiple questions about data quality, execute the code, and provide clear interpretations with proper visualizations.",
-            backstory="You are a skilled data scientist proficient in exploratory data analysis. You write clean, error-free code with proper string handling, formatting, and visualization management.",
-            verbose=True,
-            llm=llm,
-            max_retry_limit=3
-        )
+def create_data_scientist(category_name):
+    """Create data scientist agent with unique identity per category"""
+    return Agent(
+        role=f"Data Scientist - {category_name}",
+        goal=f"Execute Python code for {category_name} analysis and provide actual results with visualizations",
+        backstory=f"Expert data scientist specialized in {category_name} analysis. You MUST execute code using the PythonREPL tool and provide actual numerical results, never placeholders.",
+        verbose=True,
+        llm=create_llm(),
+        max_retry_limit=2,
+        memory=False,
+        allow_delegation=False
+    )
 
-def create_batch_eda_task(questions_list, category_name, datapath_info, imagepath_dir):
-    """Create a task for the data scientist to analyze a batch of questions in one category"""
+def create_eda_task(questions_list, category_name, dataset_path, image_dir):
+    """Create EDA task for a category with improved code generation"""
     questions_str = "\n".join([f"{i+1}. {q}" for i, q in enumerate(questions_list)])
     
+    timestamp = int(time.time())
+    unique_id = f"{category_name}_{timestamp}"
+    
+    # Dynamically generate code template for all questions
+    code_template_sections = []
+    for i, question in enumerate(questions_list):
+        code_template_sections.append(f"""
+        # Question {i+1} Analysis: {question}
+        print("\\n==== Question {i+1} Analysis ====")
+        # Add specific analysis code here based on the question: {question}
+        # Always include print statements for results.
+        
+        # Create visualization for Question {i+1}
+        plt.figure(figsize=(10, 6))
+        # Add plotting code here for Question {i+1}
+        plot_path = '{image_dir}/{category_name.replace(" ", "_")}_q{i+1}_analysis.png'
+        plt.savefig(plot_path, bbox_inches='tight', dpi=300)
+        print(f"Plot saved to: {{plot_path}}")
+        plt.close()
+        """)
+    
+    full_code_template = f"""
+        import pandas as pd
+        import numpy as np
+        import matplotlib.pyplot as plt
+        import seaborn as sns
+        import os
+        
+        # Ensure directory exists
+        os.makedirs('{image_dir}', exist_ok=True)
+        
+        # Load the dataset
+        df = pd.read_csv('{dataset_path}')
+        print(f"Dataset loaded successfully. Shape: {{df.shape}}")
+        
+        {''.join(code_template_sections)}
+    """
+
     return Task(
         description=f"""
-        You are tasked with generating the Python code to answer multiple questions for the category: {category_name}. 
+        CRITICAL: You MUST execute Python code using the PythonREPL tool and provide ACTUAL results.
         
-        Dataset information:
-        - Dataset path: {datapath_info}
-        - Image save path: {imagepath_dir}
+        Analysis ID: {unique_id}
+        Dataset: {dataset_path}
+        Category: {category_name}
+        Save images to: {image_dir}
         
-        Questions to answer:
+        Questions to analyze:
         {questions_str}
         
-        IMPORTANT: Follow these guidelines EXACTLY:
+        EXECUTION REQUIREMENTS:
+        1. Use the PythonREPL tool to execute ALL code
+        2. Generate ONE complete Python script that answers ALL questions listed above.
+        3. MUST include print statements for all calculated values.
+        4. MUST save plots with exact naming convention: `{{category_name.replace(" ", "_")}}_q{{question_number}}_analysis.png`
+        5. MUST provide actual numerical results, never use placeholders.
         
-        1. Generate ONE Python script that analyzes ALL questions for this category
-        2. Your code MUST:
-           - Include proper imports for pandas, numpy, matplotlib, seaborn as needed
-           - Load the dataset from {datapath_info}
-           - Create separate sections for each question with clear headers
-           - Use appropriate analysis methods for each question
-           - Print results to console
-           - Save plots to {imagepath_dir} with descriptive filenames in the format: {imagepath_dir}/[category]_q[num]_[description].png
-           - After saving each plot, explicitly print: "Plot saved to: [full_path_to_image]"
+        Code Template (EXECUTE THIS and fill in the details for each question):
+        ```python
+        {full_code_template}
+        ```
         
-        3. For each plot:
-           - Use plt.savefig('{imagepath_dir}/[category]_q[num]_[description].png', bbox_inches='tight', dpi=300)
-           - ALWAYS print: "Plot saved to: [full_path_to_image]" immediately after saving
-           - Call plt.close() to free memory
-        
-        4. Ensure your code:
-           - Has NO syntax errors
-           - Uses proper string formatting (no unterminated strings)
-           - Handles errors gracefully
-           - Is well-commented
-           - Properly saves all plots and prints their save paths
-        
-        5. Structure your code like this:
-           ```python
-           # Import necessary libraries
-           import pandas as pd
-           import numpy as np
-           import matplotlib.pyplot as plt
-           import seaborn as sns
-           
-           # Load dataset
-           df = pd.read_csv('{datapath_info}')
-           
-           # Question 1
-           print("==== Question 1 Analysis ====")
-           # Your analysis code here
-           
-           # Question 2
-           print("==== Question 2 Analysis ====")
-           # Your analysis code here
-           
-           # And so on...
-           ```
+        IMPORTANT: 
+        - Execute the code using PythonREPL tool.
+        - Capture and report ALL printed output.
+        - Provide real numerical results, not placeholders.
+        - Each question must have both analysis and visualization.
         """,
-        expected_output="""
-    Provide a structured analysis with:
-    
-    # {category_name} Analysis
-    
-    ### Question 1
-    - [Question text]
-    
-    #### Code
-    ```python
-    [Clean, properly formatted Python code]
-    ```
-    
-    #### Code Output
-    ```
-    [Results from execution]
-    ```
-    
-    #### Detailed Analysis
-    [Clear detailed interpretation of results]
-    
-    #### Plots Generated
-    [List of plots with full paths as printed in the code output]
-    
-    ### Question 2
-    [Same structure as above]
-    
-    ... and so on for all questions
-    """,
-        agent=create_data_scientist()
+        expected_output=f"""
+        You must execute the Python code using the PythonREPL tool and provide the actual execution results.
+
+        Format your response as:
+
+        ### Question 1
+        - **[Question text]**
+
+        #### Code
+        ```python
+        [The actual code that was executed for Question 1]
+        ```
+
+        #### Code Output
+        ```
+        [Real output from PythonREPL execution for Question 1 - actual numbers, not placeholders]
+        ```
+
+        #### Detailed Analysis
+        [Analysis based on the actual results obtained for Question 1]
+
+        #### Plots Generated
+        ![Plot](images/[actual_filename_q1].png)
+
+        ### Question 2
+        - **[Question text]**
+
+        #### Code
+        ```python
+        [The actual code that was executed for Question 2]
+        ```
+
+        #### Code Output
+        ```
+        [Real output from PythonREPL execution for Question 2 - actual numbers, not placeholders]
+        ```
+
+        #### Detailed Analysis
+        [Analysis based on the actual results obtained for Question 2]
+
+        #### Plots Generated
+        ![Plot](images/[actual_filename_q2].png)
+
+        [Repeat for all questions with actual executed results. Ensure each question has its own section with Code, Code Output, Detailed Analysis, and Plots Generated.]
+        
+        CRITICAL: Never use [calculated_value] or similar placeholders. All results must be actual numbers from code execution.
+        """,
+        agent=create_data_scientist(category_name)
     )
-    
-def extract_plot_paths(result_text):
-    """Extract plot file paths from the result text"""
-    plot_paths = []
+
+def extract_plot_paths(text):
+    """Extract plot paths from result text and normalize them to images/ format"""
     patterns = [
-        r'Plot saved to: ([\w/\\\.]+\.png)',
-        r'Saved to: ([\w/\\\.]+\.png)',
-        r'(eda_agent_report/images/[\w\-_\.]+\.png)',
-        r'saving plot to: ([\w/\\\.]+\.png)',
-        r'Saved plot to: ([\w/\\\.]+\.png)',
-        r'(eda_agent_report\\images\\[\w\-_\.]+\.png)'
+        r'Plot saved to: ([^\n\r]+\.png)',
+        r'Saved to: ([^\n\r]+\.png)',
+        r'(eda_agent_report/images/[^\s]+\.png)',
+        r'(images/[^\s]+\.png)'
     ]
     
+    paths = []
     for pattern in patterns:
-        matches = re.findall(pattern, result_text, re.IGNORECASE)
-        plot_paths.extend(matches)
+        found_paths = re.findall(pattern, text, re.IGNORECASE)
+        paths.extend(found_paths)
     
-    # Clean up paths (remove duplicates, fix slashes)
-    cleaned_paths = []
-    for path in plot_paths:
+    # Normalize all paths to images/ format
+    normalized_paths = []
+    for path in paths:
         path = path.replace('\\', '/')
-        if path not in cleaned_paths:
-            cleaned_paths.append(path)
+        # Extract just the filename from full paths
+        if 'eda_agent_report/images/' in path:
+            filename = path.split('eda_agent_report/images/')[-1]
+            normalized_paths.append(f'images/{filename}')
+        elif path.startswith('images/'):
+            normalized_paths.append(path)
+        else:
+            # If it's just a filename, assume it goes in images/
+            filename = os.path.basename(path)
+            normalized_paths.append(f'images/{filename}')
     
-    return cleaned_paths
+    return list(set(normalized_paths))
 
-def run_eda_analysis(dataset_path, questions_data, imagepath_dir):
-    """Run the EDA crew with the given questions - batch by category with improved rate limit handling"""
+def embed_plots_in_report(result_text, plot_paths):
+    """Embed plots in report at proper locations with proper spacing"""
+    if not plot_paths:
+        return result_text
     
-    # Create directories if they don't exist
-    os.makedirs(imagepath_dir, exist_ok=True)
+    # Sort plot paths by question number to ensure correct order
+    def extract_question_num(path):
+        match = re.search(r'_q(\d+)_', path)
+        return int(match.group(1)) if match else 999
+    
+    sorted_plots = sorted(plot_paths, key=extract_question_num)
+    
+    # Split by questions and embed plots
+    sections = result_text.split('### Question')
+    updated_result = sections[0] if sections else ""
+    
+    for i, section in enumerate(sections[1:], 1):
+        # Find the corresponding plot for this question
+        question_plot = None
+        for plot in sorted_plots:
+            if f'_q{i}_' in plot:
+                question_plot = plot
+                break
+        
+        # If this section has "Plots Generated" and we have a plot, embed it
+        if "#### Plots Generated" in section and question_plot:
+            # Split the section at "#### Plots Generated"
+            parts = section.split("#### Plots Generated")
+            if len(parts) > 1:
+                before_plot = parts[0]
+                after_plot = parts[1] if len(parts) > 1 else ""
+                
+                # Clean up the after_plot section - remove any existing plot references
+                after_plot = re.sub(r'!\[Plot\]\([^)]+\)', '', after_plot)
+                after_plot = after_plot.strip()
+                
+                # Add the section with the correct plot
+                plot_section = f"#### Plots Generated\n![Plot]({question_plot})\n\n"
+                
+                # If there's content after the plot, add it with proper spacing
+                if after_plot:
+                    if not after_plot.startswith('###'):
+                        plot_section += after_plot
+                    else:
+                        plot_section += after_plot
+                
+                updated_result += f"### Question{before_plot}{plot_section}"
+            else:
+                updated_result += f"### Question{section}"
+        else:
+            updated_result += f"### Question{section}"
+    
+    return updated_result
+
+def validate_execution_results(result_text):
+    """Validate that the results contain actual executed output, not placeholders"""
+    placeholder_indicators = [
+        "[calculated_value]",
+        "[real_value]",
+        "[actual_value]",
+        "Execution completed.",
+        "Code executed successfully."
+    ]
+    
+    has_placeholders = any(indicator in result_text for indicator in placeholder_indicators)
+    has_actual_numbers = bool(re.search(r'\d+\.\d+|\d+', result_text))
+    
+    return not has_placeholders and has_actual_numbers
+
+def run_eda_analysis(dataset_path, questions_data, image_dir):
+    """Run EDA analysis with improved execution validation"""
+    
+    os.makedirs(image_dir, exist_ok=True)
     os.makedirs("eda_agent_report", exist_ok=True)
     
-    # Create PythonREPLTool
-    python_repl_tool = PythonREPLTool()
+    from tools.custom_tool import PythonREPLTool # Assuming this tool is correctly defined elsewhere
     
     all_results = {}
-    all_category_reports = {}
+    category_reports = {}
     
-    # First attempt to establish a connection to verify API works
-    print("Verifying API connection before starting analysis...")
-    try:
-        # Initial connection test with forced delay to warm up
-        time.sleep(5)  # Initial cooldown
-        llm = create_llm_with_retry()
-        print("API connection established successfully!")
-        time.sleep(10)  # Additional cooldown after successful connection
-    except Exception as e:
-        print(f"Warning: Initial API connection test failed: {str(e)}")
-        print("Will attempt to proceed with analysis anyway...")
-        time.sleep(30)  # Extended cooldown after failure
+    print("Starting EDA analysis...")
     
-    # Process each category
-    for category_idx, (category, category_data) in enumerate(questions_data.items()):
-        print(f"\n\n===== Processing category {category_idx+1}/{len(questions_data)}: {category_data['category']} =====")
-        category_report = f"# {category_data['category']} Report\n\n"
+    for idx, (category, data) in enumerate(questions_data.items()):
+        print(f"\n=== Processing {data['category']} ({idx+1}/{len(questions_data)}) ===")
         
-        # Add a delay between categories to prevent rate limits
-        if category_idx > 0:
-            wait_time = 90  # Increased wait time between categories
-            print(f"Waiting {wait_time} seconds before processing next category...")
-            time.sleep(wait_time)
+        if idx > 0:
+            time.sleep(60)  # Rate limit prevention
         
-        # Multiple attempts for processing a category
-        max_category_attempts = 3
-        for attempt in range(1, max_category_attempts + 1):
+        retry_count = 0
+        max_retries = 2
+        
+        while retry_count < max_retries:
             try:
-                # Create a fresh LLM instance for each category
-                llm = create_llm_with_retry()
+                # Create fresh instances for each category
+                python_tool = PythonREPLTool()
+                task = create_eda_task(data["questions"], data['category'], dataset_path, image_dir)
+                agent = create_data_scientist(data['category'])
+                agent.tools = [python_tool]
+                task.agent = agent
                 
-                # Create a batch task for all questions in this category
-                task = create_batch_eda_task(
-                    category_data["questions"], 
-                    category_data['category'], 
-                    dataset_path, 
-                    imagepath_dir
-                )
+                print(f"Starting analysis for {data['category']} (attempt {retry_count + 1})...")
                 
-                # Create data scientist agent with PythonREPLTool and the fresh LLM
-                data_scientist = create_data_scientist()
-                data_scientist.tools = [python_repl_tool]
-                task.agent = data_scientist
-                
-                # Create a crew with just this task
+                # Execute analysis with fresh crew
                 crew = Crew(
-                    agents=[data_scientist],
-                    tasks=[task],
-                    process=Process.sequential,
-                    verbose=True
+                    agents=[agent], 
+                    tasks=[task], 
+                    process=Process.sequential, 
+                    verbose=True,
+                    memory=False
                 )
                 
-                # Execute the crew with error handling and exponential backoff
-                max_crew_attempts = 3
-                for crew_attempt in range(1, max_crew_attempts + 1):
-                    try:
-                        print(f"Starting crew execution (attempt {crew_attempt}/{max_crew_attempts})...")
-                        result = crew.kickoff()
-                        
-                        # Extract plot paths from the result
-                        result_text = str(result)
-                        plot_paths = extract_plot_paths(result_text)
-                        
-                        # Process and embed plot images in the report
-                        if plot_paths:
-                            # Split the result text into sections
-                            sections = result_text.split('###')
-                            updated_result = ""
-                            
-                            # Process each section
-                            for section in sections:
-                                if section.strip():
-                                    updated_result += f"###{section}"
-                                    
-                                    # If this section contains "Plots Generated", add visualizations
-                                    if "Plots Generated" in section and plot_paths:
-                                        updated_result += "\n### Visualizations\n\n"
-                                        for plot_path in plot_paths:
-                                            # Clean up the path
-                                            relative_path = plot_path.replace('\\', '/')
-                                            if not relative_path.startswith('eda_agent_report'):
-                                                relative_path = os.path.join('eda_agent_report', relative_path)
-                                            
-                                            updated_result += f"![Plot]({relative_path})\n\n"
-                            
-                            result_text = updated_result
-                        
-                        all_results[category] = {
-                            "questions": category_data["questions"],
-                            "result": result_text,
-                            "plots": plot_paths
-                        }
-                        
-                        category_report += f"{result_text}\n\n"
-                        
-                        print(f"Completed batch analysis for category: {category_data['category']}")
-                        
-                        # Successfully completed this category, break both loops
-                        break
-                        
-                    except Exception as e:
-                        error_str = str(e).lower()
-                        if crew_attempt < max_crew_attempts:
-                            # Check if it's a rate limit error
-                            if "rate limit" in error_str or "too many requests" in error_str:
-                                wait_time = 120 * crew_attempt  # Progressive backoff
-                                print(f"Rate limit hit. Waiting {wait_time} seconds before retry...")
-                            else:
-                                wait_time = 60 * crew_attempt
-                                print(f"Error during crew execution: {str(e)}")
-                                print(f"Waiting {wait_time} seconds before retry...")
-                            
-                            # Add jitter to avoid synchronized retries
-                            wait_time += random.uniform(5, 15)
-                            time.sleep(wait_time)
-                        else:
-                            # Last attempt failed, re-raise the exception
-                            raise
+                result = crew.kickoff()
+                result_text = str(result)
                 
-                # If we made it here, we've successfully processed this category
-                break
-                    
-            except Exception as e:
-                error_msg = f"Error processing category: {category_data['category']}. Error: {str(e)}"
-                print(f"ERROR: {error_msg}")
-                
-                if attempt < max_category_attempts:
-                    retry_wait = 60 * attempt  # Increase wait time with each attempt
-                    # Add jitter to avoid synchronized retries
-                    retry_wait += random.uniform(5, 15)
-                    print(f"Waiting {retry_wait:.2f} seconds before retrying category...")
-                    time.sleep(retry_wait)
+                # Validate execution results
+                if validate_execution_results(result_text):
+                    print(f"✓ Execution validation passed for {data['category']}")
+                    break
                 else:
-                    # All attempts failed, add error message to report
-                    category_report += f"### Error\nFailed after {max_category_attempts} attempts: {error_msg}\n\n"
-                    all_results[category] = {
-                        "questions": category_data["questions"],
-                        "result": f"Error: {str(e)}",
-                        "plots": []
-                    }
+                    print(f"⚠️  Execution validation failed for {data['category']} (attempt {retry_count + 1})")
+                    if retry_count < max_retries - 1:
+                        retry_count += 1
+                        time.sleep(30)
+                        continue
+                    else:
+                        print(f"⚠️  Max retries reached for {data['category']}. Using available results.")
+                
+            except Exception as e:
+                print(f"✗ Error in attempt {retry_count + 1} for {data['category']}: {str(e)}")
+                if retry_count < max_retries - 1:
+                    retry_count += 1
+                    time.sleep(30)
+                    continue
+                else:
+                    result_text = f"Error processing {data['category']}: {str(e)}"
+            
+            break
         
-        all_category_reports[category] = category_report
+        # Process results
+        plot_paths = extract_plot_paths(result_text)
+        embedded_result = embed_plots_in_report(result_text, plot_paths)
+        
+        # Store results
+        all_results[category] = {
+            "questions": data["questions"],
+            "result": embedded_result,
+            "plots": plot_paths
+        }
+        
+        # Create category report
+        category_report = f"# {data['category']} Report\n\n{embedded_result}\n"
+        category_reports[category] = category_report
         
         # Save individual category report
-        report_filename = f"eda_agent_report/{category.lower().replace(' ', '_')}_report.md"
-        with open(report_filename, "w", encoding='utf-8') as f:
+        filename = f"eda_agent_report/{data['category'].lower().replace(' ', '_')}_report.md"
+        with open(filename, "w", encoding='utf-8') as f:
             f.write(category_report)
         
-        print(f"Category report saved to {report_filename}")
+        print(f"✓ Completed {data['category']} - Generated {len(plot_paths)} plots")
     
-    # Generate combined final technical report
-    final_report = "# Exploratory Data Analysis Technical Report\n\n"
-    final_report += "## Executive Summary\n\n"
-    final_report += "This report presents a comprehensive exploratory data analysis with generated visualizations.\n\n"
-    final_report += "## Table of Contents\n\n"
+    # Generate technical report
+    technical_report = "# Exploratory Data Analysis Technical Report\n\n"
+    technical_report += "## Executive Summary\n\n"
+    technical_report += "Comprehensive EDA with automated analysis and visualizations.\n\n"
+    technical_report += "## Analysis Results\n\n"
     
-    for category, category_data in questions_data.items():
-        if category in all_category_reports:
-            final_report += f"- [{category_data['category']}](#{category_data['category'].lower().replace(' ', '-')})\n"
+    for category, data in questions_data.items():
+        if category in category_reports:
+            content = category_reports[category].split('\n', 1)[1] if '\n' in category_reports[category] else category_reports[category]
+            technical_report += f"## {data['category']}\n{content}\n---\n\n"
     
-    final_report += "\n"
+    # Save technical report
+    with open("eda_agent_report/technical_report.md", "w", encoding='utf-8') as f:
+        f.write(technical_report)
     
-    # Add each category report
-    for category, category_data in questions_data.items():
-        if category in all_category_reports:
-            final_report += f"## {category_data['category']}\n\n"
-            final_report += all_category_reports[category]
-            final_report += "---\n\n"
-    
-    # Save final report
-    final_report_path = "eda_agent_report/technical_report.md"
-    with open(final_report_path, "w", encoding='utf-8') as f:
-        f.write(final_report)
-    
-    print(f"Final technical report saved to {final_report_path}")    
-    return final_report
+    print("✓ Technical report generated: eda_agent_report/technical_report.md")
+    return technical_report

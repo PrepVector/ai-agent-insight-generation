@@ -1,0 +1,52 @@
+{
+    "data_quality_assessment": {
+        "category": "Data Quality Assessment",
+        "questions": [
+            "What percentage of missing values are present in the 'failure_event' feature?",
+            "How many duplicate rows exist in the dataset?",
+            "What is the data type of the 'server_id' column?",
+            "Are there any inconsistencies in the 'timestamp' column?",
+            "What is the count of unique values in the 'operating_system' column?"
+        ]
+    },
+    "statistical_summary": {
+        "category": "Statistical Summary",
+        "questions": [
+            "What is the mean of the 'cpu_usage' feature?",
+            "What is the median of the 'memory_usage' feature?",
+            "What is the standard deviation of the 'disk_usage' feature?",
+            "What is the variance of the 'network_latency'?",
+            "What is the interquartile range (IQR) of the 'power_consumption'?"
+        ]
+    },
+    "outlier_detection": {
+        "category": "Outlier Detection",
+        "questions": [
+            "What is the maximum value of the 'error_logs_count' feature?",
+            "What is the minimum value of the 'uptime_days' feature?",
+            "What is the 3rd quartile (Q3) of the 'server_load' feature?",
+            "What is the 1st quartile (Q1) of the 'predictive_risk' feature?",
+            "What is the mode of the 'server_age' feature?"
+        ]
+    },
+    "feature_relationships": {
+        "category": "Feature Relationships",
+        "questions": [
+            "What is the correlation coefficient between 'cpu_usage' and 'memory_usage'?",
+            "What is the correlation coefficient between 'disk_usage' and 'network_latency'?",
+            "What is the correlation coefficient between 'power_consumption' and 'temperature'?",
+            "What is the correlation coefficient between 'error_logs_count' and 'uptime_days'?",
+            "What is the correlation coefficient between 'server_load' and 'predictive_risk'?"
+        ]
+    },
+    "pattern_trend_anomalies": {
+        "category": "Pattern Trend Anomalies",
+        "questions": [
+            "What is the trend of 'cpu_usage' over time?",
+            "What is the seasonality of 'memory_usage'?",
+            "What is the anomaly in 'disk_usage'?",
+            "What is the shift in 'network_latency'?",
+            "What is the trend of 'power_consumption'?"
+        ]
+    }
+}

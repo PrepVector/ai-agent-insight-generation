@@ -2,9 +2,21 @@ import streamlit as st
 import pandas as pd
 import os
 import shutil
+import re
 from utils import format_questions_to_text, parse_text_to_questions 
 from ba_agent import run_business_analysis
 from eda_agent import run_eda_analysis
+from dotenv import load_dotenv
+from langchain_groq import ChatGroq
+import warnings
+warnings.filterwarnings('ignore')
+
+load_dotenv()
+os.environ["GROQ_API_KEY"] = os.getenv("GROQ_API_KEY")
+llm = ChatGroq(
+    temperature=0,
+    model_name="llama3-70b-8192"
+)
 
 # Create datapath_info directory if it doesn't exist
 def ensure_data_directory():
@@ -17,6 +29,44 @@ def save_uploaded_file(uploaded_file):
     with open(file_path, "wb") as f:
         f.write(uploaded_file.getbuffer())
     return file_path
+
+def extract_detailed_analysis(technical_report):
+    """Extract all 'Detailed Analysis' sections from the technical report using regex."""
+    pattern = r"#### Detailed Analysis\n(.*?)(?=\n#### |$)"
+    matches = re.findall(pattern, technical_report, re.DOTALL)
+    return matches
+
+def generate_business_report(detailed_analysis_sections):
+    """Generate a business report with key insights from detailed analysis sections."""
+    # Combine all detailed analysis sections
+    combined_analysis = "\n".join(detailed_analysis_sections)
+    
+    prompt = f"""Based on the following detailed analysis from a technical report, 
+    create clear business insights in bullet point format. Focus on actionable 
+    insights and key findings:
+
+    {combined_analysis}
+    
+    Please format the output as bullet points starting with '- '
+    NOTE: Only use information directly from the analysis; do not introduce new data 
+or make assumptions.
+    """
+    
+    try:
+        response = llm.invoke(prompt,temperature=0)
+        result = response.content
+        # Extract just the bullet points from the response
+        bullet_points = re.findall(r'- .*', result)
+        
+        # Format the business report
+        business_report = "# Business Insights Report\n\n"
+        business_report += "## Key Insights\n\n"
+        for point in bullet_points:
+            business_report += f"{point}\n"        
+        return business_report
+    
+    except Exception as e:
+        return f"Error generating business report: {str(e)}"
 
 def main():
     st.set_page_config(page_title="InsightBot", page_icon="🤖", layout="wide")
@@ -34,6 +84,8 @@ def main():
         st.session_state.dataset_path = None
     if 'metadata_path' not in st.session_state:
         st.session_state.metadata_path = None
+    if 'technical_report' not in st.session_state:
+        st.session_state.technical_report = None
     
     # Sidebar elements
     st.sidebar.title("Data Controls")
@@ -112,19 +164,34 @@ def main():
                     # Parse the edited text back to structured format
                     updated_questions = parse_text_to_questions(st.session_state.questions_text)
                     # Run the EDA analysis
-                    results = run_eda_analysis(st.session_state.dataset_path,updated_questions,imagepath_dir)
+                    results = run_eda_analysis(st.session_state.dataset_path, updated_questions, imagepath_dir)
+                    st.session_state.technical_report = results
                     if st.button("Stop Analysis"):
                         st.warning("Analysis stopped by user")
                         st.stop()
                     st.success("EDA analysis completed!")
-                    # st.markdown("#### Technical Report Preview")
-                    # st.markdown(results, unsafe_allow_html=True)
                     st.download_button(
                         label="Download Full Technical Report as Markdown",
                         data=results,
                         file_name="eda_agent_report/technical_report.md",
                         mime="text/markdown"
                     )
+            
+            if st.session_state.technical_report:
+                if st.button("Generate Business Report"):
+                    with st.spinner("Extracting insights and generating business report..."):
+                        detailed_analysis = extract_detailed_analysis(st.session_state.technical_report)                        
+                        business_report = generate_business_report(detailed_analysis)
+                        
+                        st.success("Business report generated successfully!")
+                        st.markdown(business_report)
+                        
+                        st.download_button(
+                            label="Download Business Report as Markdown",
+                            data=business_report,
+                            file_name="eda_agent_report/business_report.md",
+                            mime="text/markdown"
+                        )
     else:
         st.info("Please upload a dataset file to begin.")
 

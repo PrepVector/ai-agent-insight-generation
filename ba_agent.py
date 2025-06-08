@@ -1,5 +1,6 @@
 from crewai import Agent, Task, Crew, Process
-from langchain_groq import ChatGroq
+# from langchain_groq import ChatGroq
+from langchain_openai import AzureChatOpenAI
 import pandas as pd
 import os
 import warnings
@@ -10,15 +11,35 @@ from dotenv import load_dotenv
 from utils import extract_json_from_response
 # Suppress warnings
 warnings.filterwarnings('ignore')
+from crewai.llm import LLM
 
 # Load environment variables from .env file
 load_dotenv()
-os.environ["GROQ_API_KEY"] = os.getenv("GROQ_API_KEY")
-# Initialize the language model
-llm = ChatGroq(
-    temperature=0,
-    model_name="groq/llama3-70b-8192"
-)
+# os.environ["GROQ_API_KEY"] = os.getenv("GROQ_API_KEY")
+# # Initialize the language model
+# llm = ChatGroq(
+#     temperature=0,
+#     model_name="groq/llama3-70b-8192"
+# )
+AZURE_OPENAI_API_KEY = os.getenv("AZURE_OPENAI_API_KEY")
+AZURE_OPENAI_ENDPOINT = os.getenv("AZURE_OPENAI_ENDPOINT")
+AZURE_OPENAI_DEPLOYMENT = os.getenv("AZURE_OPENAI_DEPLOYMENT")
+AZURE_OPENAI_API_VERSION = os.getenv("AZURE_OPENAI_API_VERSION")
+
+def create_llm():
+    """Create LLM with retry logic"""
+    try:
+        return LLM(
+            model="azure/gpt-4o",
+            api_key=AZURE_OPENAI_API_KEY,
+            api_base=AZURE_OPENAI_ENDPOINT,
+            api_version=AZURE_OPENAI_API_VERSION,
+            temperature=0.01,
+            max_tokens=4000
+        )
+    except Exception as e:
+        print(f"Error creating LLM: {e}")
+        return None
 
 def generate_summary_text(df):
     """Generate comprehensive summary statistics for the dataset"""
@@ -92,7 +113,8 @@ def run_business_analysis(df: pd.DataFrame, metadata: str = None) -> Dict[str, D
         role="Business Analyst",
         goal="Generate comprehensive exploratory data analysis questions in JSON format",
         backstory="An expert business analyst specialized in formulating insightful questions for data exploration and returning them in JSON format.",
-        llm=llm,
+        # llm=llm,
+        llm=create_llm(),
         verbose=True
     )
     
@@ -107,7 +129,7 @@ def run_business_analysis(df: pd.DataFrame, metadata: str = None) -> Dict[str, D
         Dataset Summary:
         {summary}
         
-        Generate 5 relevant questions for EACH of these categories:
+        Generate exactly 5 relevant questions for EACH of these categories:
         1. Data Quality Assessment - Questions about data completeness, validity, consistency
         2. Statistical Summary - Questions about distributions, central tendency, spread
         3. Outlier Detection - Questions about detecting anomalies or extreme values
@@ -133,7 +155,7 @@ def run_business_analysis(df: pd.DataFrame, metadata: str = None) -> Dict[str, D
         Dataset Summary:
         {summary}
         
-        Generate 5 relevant questions for EACH of these categories:
+        Generate exactly 5 relevant questions for EACH of these categories:
         1. Data Quality Assessment - Questions about data completeness, validity, consistency
         2. Statistical Summary - Questions about distributions, central tendency, spread
         3. Outlier Detection - Questions about detecting anomalies or extreme values
