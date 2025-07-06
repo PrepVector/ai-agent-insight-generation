@@ -6,16 +6,15 @@ import re
 from utils import format_questions_to_text, parse_text_to_questions 
 from ba_agent import run_business_analysis
 from eda_agent import run_eda_analysis
-from dotenv import load_dotenv
 import warnings
 warnings.filterwarnings('ignore')
 # Azure OpenAI Configuration
 from openai import AzureOpenAI
+import zipfile
+import io
 
-load_dotenv()
 AZURE_OPENAI_API_KEY = os.getenv("AZURE_OPENAI_API_KEY")
 AZURE_OPENAI_ENDPOINT = os.getenv("AZURE_OPENAI_ENDPOINT")
-AZURE_OPENAI_DEPLOYMENT = os.getenv("AZURE_OPENAI_DEPLOYMENT")
 AZURE_OPENAI_API_VERSION = os.getenv("AZURE_OPENAI_API_VERSION")
 
 llm = AzureOpenAI(
@@ -59,8 +58,15 @@ or make assumptions.
     """
     
     try:
-        response = llm.invoke(prompt,temperature=0)
-        result = response.content
+        response = llm.chat.completions.create(
+            model="gpt-4o",
+            messages=[
+                {"role": "system", "content": "You are a helpful assistant."},
+                {"role": "user", "content": prompt}
+            ],
+            temperature=0.0
+        )
+        result = response.choices[0].message.content
         # Extract just the bullet points from the response
         bullet_points = re.findall(r'- .*', result)
         
@@ -73,6 +79,22 @@ or make assumptions.
     
     except Exception as e:
         return f"Error generating business report: {str(e)}"
+    
+def create_report_zip(report_path, images_dir):
+    # Create a BytesIO buffer to hold the ZIP in memory
+    zip_buffer = io.BytesIO()
+    with zipfile.ZipFile(zip_buffer, "w") as zip_file:
+        # Add the markdown report
+        zip_file.write(report_path, arcname="technical_report.md")
+        # Add all images
+        for root, _, files in os.walk(images_dir):
+            for file in files:
+                file_path = os.path.join(root, file)
+                # arcname ensures images are in 'images/' in the zip
+                arcname = os.path.relpath(file_path, os.path.dirname(report_path))
+                zip_file.write(file_path, arcname=arcname)
+    zip_buffer.seek(0)
+    return zip_buffer
 
 def main():
     st.set_page_config(page_title="InsightBot", page_icon="🤖", layout="wide")
@@ -176,28 +198,32 @@ def main():
                         st.warning("Analysis stopped by user")
                         st.stop()
                     st.success("EDA analysis completed!")
+
+            if st.session_state.technical_report:
+                zip_buffer = create_report_zip(
+                    "eda_agent_report/technical_report.md",
+                    "eda_agent_report/images"
+                )
+                st.download_button(
+                    label="Download Technical Report and Images (ZIP)",
+                    data=zip_buffer,
+                    file_name="technical_report_with_images.zip",
+                    mime="application/zip"
+                )
+            if st.button("Generate Business Report"):
+                with st.spinner("Extracting insights and generating business report..."):
+                    detailed_analysis = extract_detailed_analysis(st.session_state.technical_report)                        
+                    business_report = generate_business_report(detailed_analysis)
+                    
+                    st.success("Business report generated successfully!")
+                    st.markdown(business_report)
+                    
                     st.download_button(
-                        label="Download Full Technical Report as Markdown",
-                        data=results,
-                        file_name="eda_agent_report/technical_report.md",
+                        label="Download Business Report as Markdown",
+                        data=business_report,
+                        file_name="eda_agent_report/business_report.md",
                         mime="text/markdown"
                     )
-            
-            if st.session_state.technical_report:
-                if st.button("Generate Business Report"):
-                    with st.spinner("Extracting insights and generating business report..."):
-                        detailed_analysis = extract_detailed_analysis(st.session_state.technical_report)                        
-                        business_report = generate_business_report(detailed_analysis)
-                        
-                        st.success("Business report generated successfully!")
-                        st.markdown(business_report)
-                        
-                        st.download_button(
-                            label="Download Business Report as Markdown",
-                            data=business_report,
-                            file_name="eda_agent_report/business_report.md",
-                            mime="text/markdown"
-                        )
     else:
         st.info("Please upload a dataset file to begin.")
 
