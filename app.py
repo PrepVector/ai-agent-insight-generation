@@ -7,18 +7,12 @@ from utils import format_questions_to_text, parse_text_to_questions
 from ba_agent import run_business_analysis
 from eda_agent import run_eda_analysis
 from dotenv import load_dotenv
-# from langchain_groq import ChatGroq
 import warnings
 warnings.filterwarnings('ignore')
 # Azure OpenAI Configuration
 from openai import AzureOpenAI
 
 load_dotenv()
-# os.environ["GROQ_API_KEY"] = os.getenv("GROQ_API_KEY")
-# llm = ChatGroq(
-#     temperature=0,
-#     model_name="llama3-70b-8192"
-# )
 AZURE_OPENAI_API_KEY = os.getenv("AZURE_OPENAI_API_KEY")
 AZURE_OPENAI_ENDPOINT = os.getenv("AZURE_OPENAI_ENDPOINT")
 AZURE_OPENAI_DEPLOYMENT = os.getenv("AZURE_OPENAI_DEPLOYMENT")
