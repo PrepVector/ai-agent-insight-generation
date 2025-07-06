@@ -7,15 +7,18 @@ from utils import format_questions_to_text, parse_text_to_questions
 from ba_agent import run_business_analysis
 from eda_agent import run_eda_analysis
 from dotenv import load_dotenv
-from langchain_groq import ChatGroq
 import warnings
 warnings.filterwarnings('ignore')
+from langchain_openai import AzureChatOpenAI
 
 load_dotenv()
-os.environ["GROQ_API_KEY"] = os.getenv("GROQ_API_KEY")
-llm = ChatGroq(
-    temperature=0,
-    model_name="llama3-70b-8192"
+llm = AzureChatOpenAI(
+    temperature=0.0,
+    azure_endpoint=os.getenv("AZURE_OPENAI_ENDPOINT"),
+    azure_deployment=os.getenv("AZURE_OPENAI_DEPLOYMENT_NAME"),
+    api_version=os.getenv("AZURE_OPENAI_API_VERSION", "2024-02-01"),
+    api_key=os.getenv("AZURE_OPENAI_API_KEY"),
+    model_version=os.getenv("AZURE_OPENAI_MODEL_VERSION", "0613")
 )
 
 # Create datapath_info directory if it doesn't exist
