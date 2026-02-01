@@ -35,7 +35,7 @@ def create_llm():
         return LLM(
             model="azure/gpt-4o",
             api_key=AZURE_OPENAI_API_KEY,
-            api_base=AZURE_OPENAI_ENDPOINT,
+            base_url=AZURE_OPENAI_ENDPOINT,  # Changed from api_base
             api_version=AZURE_OPENAI_API_VERSION,
             temperature=0.01,
             max_tokens=4000
